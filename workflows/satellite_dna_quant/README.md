@@ -22,6 +22,7 @@ All adjustable parameters are in the file `config.yaml`.  They are listed below.
 * `samtools` >= 1.0
 * `picard`
 * `kallisto` 
+* `deinterleave_fastq.sh` -- just a shell script to split a fastq file with interleaved mates into a pair of files; could probably also use `seqtk` or similar
 
 Note that the version of Snakemake required is newer than the one installed by the Killdevil system admins.  The newer version allows the use of YAML config files instead of JSON, which I like.
 
