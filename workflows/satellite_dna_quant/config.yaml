@@ -1,6 +1,6 @@
 out: out_counts/satellite_denovo_k31
 index: satellite_denovo.k31.idx
-bams: run_map.txt
+bams: bams.txt
 working: /netscr/apm/do_wgs/
 threads: 4
 memory: 12
