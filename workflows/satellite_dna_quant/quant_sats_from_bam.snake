@@ -1,0 +1,104 @@
+#! /usr/bin/env python
+"""
+quant_sats_from_bam.snake
+Use kallisto to quantify abundance of centromeric satellite repeats in Illumina PE-WGS data, starting from bam file.
+First strip out read pairs which in which one or both members is unmapped, then query-sort to restore pairing.
+"""
+
+from __future__ import print_function
+
+import os
+import sys
+import re
+import yaml
+
+def load_samples(sfile, suffixes = ["sorted","realigned","deduped","recal"]):
+	""" Read sample list. """
+	samples = {}
+	for line in sfile:
+		if line.startswith("#"):
+			continue
+		pieces = line.strip().split()
+		sm = str(pieces[0])
+		sm = os.path.basename(sm).rstrip(".bam")
+		for suff in suffixes:
+			sm = re.sub(r"\." + suff, "", sm)
+		samples[sm] = os.path.abspath(pieces[0])
+	return samples
+
+## read project-specific configuration options
+BAMLIST = config["bams"]
+INDEX = config["index"]
+OUTDIR = config["out"]
+ALNROOT = config["working"]
+
+## global software configuration; probably won't change much
+PICARD = "~/src/picard/picard.jar"
+
+## read run manifest, assigning runs to samples
+in_bams = load_samples(open(BAMLIST,"r"))
+samples = in_bams.keys()
+
+## make targets
+print("Final targets are:\n------")
+final_targets = []
+for sample in samples:
+	kallisto_result = os.path.join(OUTDIR, sample, "abundance.tsv")
+	print("\t" + kallisto_result)
+	final_targets.append(kallisto_result)
+print("------")
+
+rule all:
+	input: final_targets
+
+rule quant:
+	input:
+		index = INDEX,
+		read1 = os.path.join(ALNROOT, "reverted/{sample}_1.fq.gz"),
+		read2 = os.path.join(ALNROOT, "reverted/{sample}_2.fq.gz")
+	output:
+		os.path.join(OUTDIR, "{sample}/abundance.tsv")
+	params:
+		threads = str(config["threads"]),
+		memory = str(config["memory"])
+	shell:
+		"kallisto quant -i {input.index} -t {params.threads} -o {OUTDIR}/{wildcards.sample} {input.read1} {input.read2}"
+
+rule revert:
+	input:
+		os.path.join(ALNROOT, "reverted/{sample}.bam")
+	output:
+		read1 = os.path.join(ALNROOT, "reverted/{sample}_1.fq.gz"),
+		read2 = os.path.join(ALNROOT, "reverted/{sample}_2.fq.gz")
+	params:
+		threads = str(4)
+	shell:
+		"samtools bam2fq {input} | deinterleave_fastq.sh {output.read1} {output.read2} compress"
+
+rule presort:
+	input:
+		unmapped_both = os.path.join(ALNROOT, "unmapped/{sample}.both.bam"),
+		unmapped_mate = os.path.join(ALNROOT, "unmapped/{sample}.mates.bam"),
+		unmapped_single = os.path.join(ALNROOT, "unmapped/{sample}.single.bam")
+	output:
+		unsorted = os.path.join(ALNROOT, "reverted/{sample}.unsorted.bam"),
+		qsorted = os.path.join(ALNROOT, "reverted/{sample}.bam")
+	params:
+		prefix = os.path.join(ALNROOT, "reverted/sorting/{sample}"),
+		threads = str(8),
+		memory = str(16)
+	shell:
+		"samtools merge -@ {params.threads} {output.unsorted} {input.unmapped_both} {input.unmapped_mate} {input.unmapped_single}; " + \
+		"samtools sort -@ {params.threads} -n {output.unsorted} >{output.qsorted}"
+
+rule extract:
+	input:
+		lambda w: in_bams[w.sample]
+	output:
+		unmapped_both = os.path.join(ALNROOT, "unmapped/{sample}.both.bam"),
+		unmapped_mate = os.path.join(ALNROOT, "unmapped/{sample}.mates.bam"),
+		unmapped_single = os.path.join(ALNROOT, "unmapped/{sample}.single.bam")
+	shell:
+		"samtools view -bh -f12 {input} >{output.unmapped_both};" + \
+		"samtools view -bh -f8 -F4 {input} >{output.unmapped_mate};" + \
+		"samtools view -bh -f4 -F8 {input} >{output.unmapped_single};"

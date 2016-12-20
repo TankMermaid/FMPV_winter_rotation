@@ -1,0 +1,15 @@
+# configuration for alignment pipeline
+reference: /proj/pmdvlab/data/genomes/mm10/mm10_plus.fa
+
+logs: jobs
+tmpdir: .tmp
+readbuffer: 2000000
+threads: 2
+memory: 12
+
+samples: samples.txt
+runs: run_map.txt
+#fastq: /netscr/apm/new_wild/fastq
+#aligned: /netscr/apm/new_wild/aln
+aligned: aln_plus
+fastq: fastq

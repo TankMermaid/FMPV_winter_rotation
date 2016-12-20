@@ -1,0 +1,6 @@
+out: out_counts/satellite_denovo_k31
+index: satellite_denovo.k31.idx
+runs: run_map.txt
+fastq: /netscr/apm/do_wgs/fastq
+threads: 4
+memory: 12
